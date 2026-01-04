@@ -1,55 +1,45 @@
 <?php
 session_start();
-require 'function.php'; // Pastikan file ini berisi koneksi $conn
+require 'function.php';
 
-if(!isset($_SESSION["login"])) {
-   header("Location: login.php");
-   exit;
+if( !isset($_SESSION["login"]) ) {
+    header("Location: login.php");
+    exit;
 }
 
-$id_user = $_SESSION["id_user"];
+// 1. Validasi ID Item dari URL
+if (!isset($_GET["id"]) || empty($_GET["id"])) {
+    header("Location: index.php");
+    exit;
+}
 
-//AMBIL DATA USER 
-$query_user = mysqli_query($conn, "SELECT * FROM users WHERE id_user = '$id_user'");
-$user = mysqli_fetch_assoc($query_user);
+$id_item = $_GET["id"]; 
 
-$folder_profil = "img/profil/";
-if (!empty($user['foto_profil']) && file_exists($folder_profil . $user['foto_profil'])) {
-    $path_foto = $folder_profil . $user['foto_profil'];
+// 2. Ambil Data User untuk Navbar (Agar foto profil muncul)
+$id_log = $_SESSION["id_user"];
+$user_query = mysqli_query($conn, "SELECT * FROM users WHERE id_user = '$id_log'");
+$user = mysqli_fetch_assoc($user_query);
+
+$folder_foto = "img/profil/";
+if (!empty($user['foto_profil']) && file_exists($folder_foto . $user['foto_profil'])) {
+    $path_foto = $folder_foto . $user['foto_profil'];
 } else {
-    $path_foto = $folder_profil . "default.jpg"; 
+    $path_foto = $folder_foto . "default.jpg"; 
 }
 
-// Query dasar (Hanya menampilkan yang 'tersedia')
-$sql = "SELECT items.*, categories.nama_kategori, users.username, users.whatsapp 
-        FROM items 
-        LEFT JOIN categories ON items.id_kategori = categories.id_kategori 
-        LEFT JOIN users ON items.id_user = users.id_user
-       WHERE items.status = 'tersedia'";
-
-// Jika tombol cari diklik, tambahkan filter ke SQL
-if (isset($_POST["search"])) {
-    $keyword = mysqli_real_escape_string($conn, $_POST["keyword"]);
-    $sql .= " AND (items.nama_barang LIKE '%$keyword%' 
-               OR items.deskripsi LIKE '%$keyword%' 
-               OR items.lokasi_temuan LIKE '%$keyword%'
-               OR categories.nama_kategori LIKE '%$keyword%')";
-}
-
-// EKSEKUSI QUERY (PENTING: Variabel $result dibuat di sini)
-$result = mysqli_query($conn, $sql);
-
-// Cek jika query gagal (untuk debugging)
-if (!$result) {
-    die("Query Error: " . mysqli_error($conn));
-}
-
-$items = [];
-while($row = mysqli_fetch_assoc($result)){
-    $items[] = $row;
+// 3. Proses Form Submit
+if (isset($_POST["submit"])) {
+    if (tambahKlaim($_POST) > 0) {
+      $hasil = statusSelesai($id_item); 
+        echo "<script>
+                alert('Selamat sudah menemukan barangmu kembali!');
+                document.location.href='index.php';
+              </script>";
+    } else {
+        echo "<script>alert('Gagal mengirim klaim!');</script>";
+    }
 }
 ?>
-
 
   <!DOCTYPE html>
 <html lang="en">
@@ -68,23 +58,12 @@ while($row = mysqli_fetch_assoc($result)){
 
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
-        <style>
-           .avatar-small{
-            width: 32px;
-            height: 32px;
-            object-fit: cover;
-          margin-right: 6px;    
-        }
-
-
         
-
-        </style>
-
     </head>
     <body>
+        
         <!-- Navigation-->
-        <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+      <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
            <div class="container px-4 px-lg-5">
                 <a class="navbar-brand fw-bolder #181F39" href="#!"><i class="bi bi-box2-heart-fill"></i>  FoundIt</a>
                 <form class="mt-2" method="post">
@@ -139,6 +118,7 @@ while($row = mysqli_fetch_assoc($result)){
                           </div>
                         </li>
                           </ul>
+
                     </ul>
                     </form>
                 </div>
@@ -148,57 +128,38 @@ while($row = mysqli_fetch_assoc($result)){
         <header class="py-5" style="background-color: #181F39;">
             <div class="container px-4 px-lg-5 my-5">
                 <div class="text-center text-white">
-                    <h1 class="display-4 fw-bolder">Let's FoundIt</h1>
-                    <p class="lead fw-normal text-white-50 mb-0">Temukan yang hilang, kembalikan yang ditemukan</p>
+                    <h1 class="display-4 fw-bolder">Yeay barangmu ketemu!</h1>
+                    <p class="lead fw-normal text-white-50 mb-0">Ayo isi datanya</p>
                 </div>
             </div>
-          <center>
-          <a href="laporan.php">
-              <button type="button" class="btn btn-lg" style="background-color: #FDA597; color: #181F39 "><b>Laporkan Barang Temuan</b></button>
-          </a>
-          </center>
         </header>
-        <section>
-          
-        </section>
         <!-- Section-->
         <section class="py-5">
-            <div class="container px-4 px-lg-5 mt-5">
-                <div class="row gx-4 gx-lg-5 row-cols-2 row-cols-md-3 row-cols-xl-4 justify-content-center">
-
-                    <?php foreach($items as $row): ?>
-                    <div class="col mb-5">
-                        <div class="card h-100">
-                            <!-- Sale badge-->
-                            <div class="badge bg-dark text-white position-absolute text-capitalize ..." style="top: 0.5rem; right: 0.5rem"><?= $row['status']; ?></div>
-                            <!-- Product image-->
-                            <img src="img/barang/<?= $row['foto_barang']?>" />
-                            <!-- Product details-->
-                            <div class="card-body p-4">
-                                <div class="text">
-                                    <!-- Product name-->
-                                    <h5 class="fw-bolder text-center"><?= $row['nama_barang']; ?></h5> 
-                                    <!-- Product price-->
-                                    <span class="text-left"><b>Deskripsi:</b> <?= $row['deskripsi']; ?></span> <br>
-                                    <span class="text-left"><b>Tanggal Temuan:</b> <?= $row['tanggal_temuan']; ?></span><br>
-                                    <span class="text-left"><b>Lokasi Temuan:</b> <?= $row['lokasi_temuan']; ?></span><br>
-                                    <span class="text-left" value="<?= $row['id_user']; ?>"><b>Penemu: </b> <?= $row['username']; ?></span><br>
-                                   
-                                </div>
-                            </div>
-                            <!-- Product actions-->
-                           <div class="card-footer p-4 pt-0 border-top-0 bg-transparent d-flex justify-content-between">
-                            
-                                <a class="btn w-50 me-2 fw-bolder" style="background-color: #ADD8CE; " href="https://wa.me/<?= $row['cp']; ?>">Hubungi</a>
-                                <a class="btn w-50 fw-bolder" style="background-color: #FEDA90;" href="klaim.php?id=<?= $row['id_item']; ?>">Ambil</a>
-                           </div>
-
+            <div class="container p-4">
+    <div class="row justify-content-center">
+        <div class="card shadow p-5">
+        <form method="POST" enctype="multipart/form-data" class="row g-3 p-4">
+                        <input type="hidden" name="id_item" value="<?= $id_item; ?>"> 
+                        <input type="hidden" name="id_user" value="<?= $_SESSION['id_user']; ?>">
+                        
+                        <div class="col-12">
+                            <label class="form-label">Deskripsikan Bukti Kuat (Opsional)</label>
+                            <textarea name="deskripsi_bukti" class="form-control" rows="3" placeholder="Contoh: Ada goresan di pojok kanan bawah..."></textarea>
                         </div>
-                    </div>
-                    <?php endforeach; ?>
+                        <div class="col-12">
+                            <label class="form-label">Unggah Foto Bukti Kepemilikan</label>
+                            <input type="file" name="bukti_kepemilikan" class="form-control" required>
+                            <small class="text-muted">Bisa berupa foto kotak barang, nota pembelian, atau foto Anda bersama barang tersebut.</small>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" name="submit" class="btn fw-bolder" style="background-color: #ADD8CE;">Klaim</button>
+                            <a href="index.php" class="btn btn-secondary fw-bolder">Batal</a>
+                        </div>
 
+                    </form>
+                    </div>
                 </div>
-            </div>
+
         </section>
         <!-- Footer-->
         <footer class="py-5" style="background-color: #181F39;">

@@ -1,5 +1,5 @@
 <?php
-$conn = mysqli_connect("localhost", "root", "", "simbs");
+$conn = mysqli_connect("localhost", "root", "", "lostnfound");
 
 
 // FUNGSI MENAMPILKAN DATA
@@ -14,281 +14,294 @@ function query($query){
     return $rows;
 }
 
-
-//TAMBAH DATA BUKU
-function tambah_data($data){
-    global $conn;
-
-
-    $judul = $data['judul'];
-    $genre = $data['genre'];
-    $penulis = $data['penulis'];
-    $penerbit = $data['penerbit'];
-    $gambar = $data['gambar'];
-    $id_kategori = $data['id_kategori'];
-
-    // upload gambar
-   $gambar = upload_gambar($judul); 
-    if( !$gambar ) {
-        return false;
-    }
-
-    $query = "INSERT INTO buku 
-                (judul, genre, penulis, penerbit, gambar, id_kategori)
-              VALUES
-                ('$judul', '$genre', '$penulis', '$penerbit', '$gambar', '$id_kategori')";
-    
-    mysqli_query($conn, $query);
-
-    return mysqli_affected_rows($conn);      
-}
-
-// TAMBAH DATA KATEGORI
-function tambah_kategori($data){
-    global $conn;
-
-
-    $nama = $data['nama_kategori'];
-
-
-    $query = "INSERT INTO kategori 
-                (nama_kategori)
-              VALUES
-                ('$nama')";
-    
-    mysqli_query($conn, $query);
-
-    return mysqli_affected_rows($conn);      
-}
-
-//  FUNGSI UPLOAD GAMBAR
-function upload_gambar($judul) {
-
-
-    // setting gambar
+function uploadGambar() { // Parameter $id_item bisa dihapus jika ingin random total
     $namaFile = $_FILES['gambar']['name'];
     $ukuranFile = $_FILES['gambar']['size'];
     $error = $_FILES['gambar']['error'];
     $tmpName = $_FILES['gambar']['tmp_name'];
 
-
-    // cek apakah tidak ada gambar yang diupload
     if( $error === 4 ) {
-        echo "<script>
-                alert('pilih gambar terlebih dahulu!');
-              </script>";
+        echo "<script>alert('pilih gambar terlebih dahulu!');</script>";
         return false;
     }
 
-
-    // cek apakah yang diupload adalah gambar
     $ekstensiGambarValid = ['jpg', 'jpeg', 'png'];
     $ekstensiGambar = explode('.', $namaFile);
     $ekstensiGambar = strtolower(end($ekstensiGambar));
+
     if( !in_array($ekstensiGambar, $ekstensiGambarValid) ) {
-        echo "<script>
-                alert('yang anda upload bukan gambar!');
-              </script>";
+        echo "<script>alert('yang anda upload bukan gambar!');</script>";
         return false;
     }
 
-
-    // cek jika ukurannya terlalu besar
-    // maks --> 5MB
     if( $ukuranFile > 5000000 ) {
-        echo "<script>
-                alert('ukuran gambar terlalu besar!');
-              </script>";
+        echo "<script>alert('ukuran gambar terlalu besar!');</script>";
         return false;
     }
 
-
-    // lolos pengecekan, gambar siap diupload
-    // generate nama gambar baru
-    $namaFileBaru =  $judul;
+    // --- BAGIAN PERUBAHAN NAMA UNIK ---
+    // uniqid() akan menghasilkan string unik berdasarkan waktu mikrodetik
+    $namaFileBaru = uniqid(); 
     $namaFileBaru .= '.';
     $namaFileBaru .= $ekstensiGambar;
 
-
-    move_uploaded_file($tmpName, 'img/' . $namaFileBaru);
-
+    move_uploaded_file($tmpName, 'img/barang/' . $namaFileBaru);
 
     return $namaFileBaru;
 }
 
-// HAPUS DATA BUKU
-function hapus_data($id){
+// TAMBAH BARANG
+function tambahBarang($data, $file) {
     global $conn;
 
+    $nama = mysqli_real_escape_string($conn, $data['nama_barang']);
+    $id_kategori = $data['id_kategori'];
+    $deskripsi = mysqli_real_escape_string($conn, $data['deskripsi']);
+    $lokasi = mysqli_real_escape_string($conn, $data['lokasi_temuan']);
+    $tanggal = $data['tanggal_temuan'];
+    $id_user = $_SESSION['id_user']; // Mengambil ID orang yang login
+    // Perbaikan untuk 'cp' (Contact Person)
+    $cp_raw = $data["cp"] ?? '';
+    $cp = mysqli_real_escape_string($conn, $cp_raw);
+     $gambar = uploadGambar(); 
+    if( !$gambar ) {
+        return false;
+    }
 
-    $query = "DELETE FROM buku WHERE id_buku = $id";
+    // --- QUERY INSERT ---
+    $query = "INSERT INTO items (id_user, id_kategori, nama_barang, deskripsi, foto_barang, lokasi_temuan, tanggal_temuan, cp, status) 
+              VALUES ('$id_user', '$id_kategori', '$nama', '$deskripsi', '$gambar', '$lokasi', '$tanggal', '$cp', 'pending')";
 
+    mysqli_query($conn, $query);
+    return mysqli_affected_rows($conn);
+}
+
+// UBAH STATUS BARANG
+function statusTersedia($id) {
+    global $conn;
+    
+    $id = (int)$id; // Pastikan ID adalah angka
+
+    $query = "UPDATE items SET status = 'tersedia' WHERE id_item = $id";
+    mysqli_query($conn, $query);
+
+    return mysqli_affected_rows($conn);
+}
+
+function statusSelesai($id) {
+    global $conn;
+    
+    $id = (int)$id; // Pastikan ID adalah angka
+
+    $query = "UPDATE items SET status = 'selesai' WHERE id_item = $id";
+    mysqli_query($conn, $query);
+
+    return mysqli_affected_rows($conn);
+}
+
+// TOLAK DATA
+function tolakItem($id) {
+    global $conn;
+    $id = (int)$id;
+    $query = "DELETE FROM items WHERE id_item = $id";
+    mysqli_query($conn, $query);
+    return mysqli_affected_rows($conn);
+}
+
+
+// PENCARIAN
+function cariBarang($keyword) {
+    global $conn;
+
+    // Bersihkan keyword untuk keamanan
+    $keyword = mysqli_real_escape_string($conn, $keyword);
+
+    $query = "SELECT items.*, categories.nama_kategori 
+              FROM items 
+              LEFT JOIN categories ON items.id_kategori = categories.id_kategori
+              WHERE items.nama_barang LIKE '%$keyword%' OR 
+                    items.deskripsi LIKE '%$keyword%' OR 
+                    items.lokasi_temuan LIKE '%$keyword%' OR
+                    categories.nama_kategori LIKE '%$keyword%'";
 
     $result = mysqli_query($conn, $query);
+    
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $rows[] = $row;
+    }
 
-
-    return mysqli_affected_rows($conn);    
+    return $rows;
 }
 
-// HAPUS DATA KATEGORI
-function hapus_kategori($id){
+//PENGAMBILAN BARANG
+function tambahKlaim($data) {
     global $conn;
 
+    // Gunakan null coalescing ?? agar tidak muncul "Undefined array key"
+    $id_item = $data["id_item"] ?? null; 
+    $id_user = $_SESSION["id_user"] ?? null;
 
-    $query = "DELETE FROM kategori WHERE id_kategori = $id";
+    // Validasi: Jika id_item kosong, hentikan proses
+    if (!$id_item || !$id_user) {
+        echo "<script>alert('Terjadi kesalahan: ID Barang atau User tidak ditemukan.');</script>";
+        return false;
+    }
 
+    $tanggal = date("Y-m-d H:i:s");
+    $status = "pending";
 
-    $result = mysqli_query($conn, $query);
+    // Panggil fungsi upload yang sudah Anda buat
+    $bukti = uploadBukti(); 
+    if (!$bukti) return false;
 
+    // Jalankan Query
+    $query = "INSERT INTO claims 
+                (id_item, id_user_pemilik, bukti_kepemilikan, tanggal_klaim, status_klaim)
+              VALUES 
+                ('$id_item', '$id_user', '$bukti', '$tanggal', '$status')";
 
-    return mysqli_affected_rows($conn);    
+    if (!mysqli_query($conn, $query)) {
+        die("Kesalahan Database: " . mysqli_error($conn));
+    }
+
+    return mysqli_affected_rows($conn);
 }
 
-// FUNGSI UNTUK MENGUBAH DATA DI DATABASE
-function ubah_data($data){
-    global $conn;
+function uploadBukti() {
+    $namaFile = $_FILES['bukti_kepemilikan']['name'];
+    $ukuranFile = $_FILES['bukti_kepemilikan']['size'];
+    $error = $_FILES['bukti_kepemilikan']['error'];
+    $tmpName = $_FILES['bukti_kepemilikan']['tmp_name'];
 
-    $id = $data['id_buku'];
-    $judul = $data['judul'];
-    $genre = $data['genre'];
-    $penulis = $data['penulis'];
-    $penerbit = $data['penerbit'];
-    $gambar = $data['gambar'];
+    if ($error === 4) {
+        echo "<script>alert('Pilih gambar bukti terlebih dahulu!');</script>";
+        return false;
+    }
+
+    $ekstensiValid = ['jpg', 'jpeg', 'png'];
+    $ekstensi = explode('.', $namaFile);
+    $ekstensi = strtolower(end($ekstensi));
+
+    if (!in_array($ekstensi, $ekstensiValid)) {
+        echo "<script>alert('Format file harus JPG, JPEG, atau PNG!');</script>";
+        return false;
+    }
+
+    if ($ukuranFile > 2000000) {
+        echo "<script>alert('Ukuran file terlalu besar! (Maks 2MB)');</script>";
+        return false;
+    }
+
+    $namaFileBaru = uniqid() . '.' . $ekstensi;
+    move_uploaded_file($tmpName, 'img/bukti/' . $namaFileBaru);
+
+    return $namaFileBaru;
+}
+
+// // FUNGSI UBAH KATEGORI
+// function ubah_kategori($data){
+//     global $conn;
+
+//     $id = $data['id_kategori'];
+//     $nama_kategori = $data['nama_kategori'];
+
+//     $query = "UPDATE kategori SET
+//                 nama_kategori = '$nama_kategori'
+//               WHERE id_kategori = '$id'
+//              ";
 
 
-    $query = "UPDATE buku SET
-                judul = '$judul',
-                genre = '$genre',
-                penulis = '$penulis',
-                penerbit = '$penerbit'
-              WHERE id_buku = '$id'
-             ";
-
-
-     $result = mysqli_query($conn, $query);
+//      $result = mysqli_query($conn, $query);
      
-     return mysqli_affected_rows($conn);
-}
+//      return mysqli_affected_rows($conn);
+// }
 
-// FUNGSI UBAH KATEGORI
-function ubah_kategori($data){
-    global $conn;
-
-    $id = $data['id_kategori'];
-    $nama_kategori = $data['nama_kategori'];
-
-    $query = "UPDATE kategori SET
-                nama_kategori = '$nama_kategori'
-              WHERE id_kategori = '$id'
-             ";
-
-
-     $result = mysqli_query($conn, $query);
-     
-     return mysqli_affected_rows($conn);
-}
-
-// fungsi untuk mencari data
-function search_data($keyword){
-    global $conn;
-
-
-     $query = "SELECT buku.*, kategori.nama_kategori 
-          FROM buku 
-          INNER JOIN kategori 
-          ON buku.id_kategori = kategori.id_kategori
-          WHERE buku.judul LIKE '%$keyword%'
-          OR buku.penulis LIKE '%$keyword%'
-          OR buku.penerbit LIKE '%$keyword%'
-          OR kategori.nama_kategori LIKE '%$keyword%'
-          ORDER BY buku.tanggal_input DESC";
-
-
-    return query($query);
-}
-
-function search_kategori($keyword){
-    global $conn;
-
-
-     $query = "SELECT *
-              FROM kategori
-              WHERE nama_kategori  LIKE '%$keyword%'"
-              ;
-
-    return query($query);
-}
-
-// fungsi untuk register
 function register($data){
     global $conn;
-
 
     $username = strtolower($data['username']);
     $email = $data['email'];
     $password = mysqli_real_escape_string($conn, $data['password']);
     $konfirmasi_password = mysqli_real_escape_string($conn, $data['confirm_password']);
+    $whatsapp_raw = isset($data['whatsapp']) ? trim($data['whatsapp']) : '';
 
+    // Validasi WhatsApp
+    $whatsapp = preg_replace('/[^0-9]/', '', $whatsapp_raw); // Hapus semua selain angka
+    if(empty($whatsapp)){
+        return "Nomor WhatsApp wajib diisi!";
+    }
+    if(strlen($whatsapp) < 10 || strlen($whatsapp) > 15){
+        return "Nomor WhatsApp tidak valid! Gunakan format 628xxxxxxxxxx";
+    }
 
-    // query untuk ngecek username yang diinputkan oleh user di database
-    $query = mysqli_query($conn, "SELECT username FROM user WHERE username = '$username'");
+    // Query cek username/email
+    $query = mysqli_query($conn, "SELECT username FROM users WHERE username = '$username' OR email = '$email'");
     $result = mysqli_fetch_assoc($query);
-
 
     if($result != NULL){
         return "Username atau email sudah terdaftar, gunakan yang lain";
     }
 
-
+    // Validasi password
     if($password != $konfirmasi_password){
         return "Konfirmasi password tidak sesuai!";
     }
-
-    // Validasi jumlah karakter
     if(strlen($password) < 8){
         return "Password minimal 8 karakter!";
     }
 
-    // enkripsi password
+    // Enkripsi password
     $password = password_hash($password, PASSWORD_DEFAULT);
 
-
-    // tambahkan userbaru ke database
-    mysqli_query($conn, "INSERT INTO user (username, email, password) VALUES('$username', '$email', '$password')");
-
-
-    return true;
+    // Insert user baru + whatsapp
+    $sql = "INSERT INTO users (username, email, password, whatsapp) VALUES('$username', '$email', '$password', '$whatsapp')";
+    if(mysqli_query($conn, $sql)){
+        // Buat link WA.me
+        $wa_link = 'https://wa.me/' . $whatsapp;
+        // Optional: simpan link ke session atau return untuk halaman selanjutnya
+        $_SESSION['user_wa_link'] = $wa_link;
+        return true;
+    } else {
+        return "Terjadi kesalahan saat registrasi: " . mysqli_error($conn);
+    }
 }
 
 
-// fungsi untuk login
-function login($data){
-    global $conn;
 
+// fungsi untuk login
+function login($data) {
+    global $conn;
 
     $username = $data['username'];
     $password = $data['password'];
 
+    // 1. Gunakan Prepared Statement untuk mencegah SQL Injection
+    $stmt = mysqli_prepare($conn, "SELECT id_user, username, password, role FROM users WHERE username = ?");
+    mysqli_stmt_bind_param($stmt, "s", $username);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
 
-    $query = "SELECT * FROM user WHERE username = '$username'";
-    $result = mysqli_query($conn, $query);
-
-
-    if(mysqli_num_rows($result) === 1){
+    // 2. Cek apakah username ditemukan
+    if (mysqli_num_rows($result) === 1) {
         $row = mysqli_fetch_assoc($result);
 
-
-        if(password_verify($password, $row['password'])){
+       
+        if (password_verify($password, $row['password'])) {
+            
+            
             $_SESSION["login"] = true;
+            $_SESSION["id_user"] = $row['id_user']; 
             $_SESSION["username"] = $row['username'];
+            $_SESSION["email"] = $row['email'];
+            $_SESSION["whatasapp"] = $row['whatsapp'];
+            $_SESSION["role"] = strtolower($row["role"]);
+
             return true;
         } else {
-           
             return "Password salah!";
         }
-
-
-    }else{
+    } else {
         return "Username tidak terdaftar!";
     }
 }

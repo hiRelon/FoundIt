@@ -1,27 +1,44 @@
 <?php
 session_start();
-    if( isset($_SESSION["login"]) ) {
+
+require("function.php");
+
+$error = "";
+
+if (isset($_SESSION["login"])) {
+
+    if (strtolower($_SESSION["role"]) === 'admin') {
+        header("Location: admin.php");
+    } else {
         header("Location: index.php");
-        exit;
     }
 
-    require("function.php");
+    exit;
+}
 
+if (isset($_POST["login"])) {
 
-    $error = "";
-    if(isset($_POST['tombol_login'])){
-       
-        if(login($_POST) == 1){
+    $hasil = login($_POST);
+
+    if ($hasil === true) {
+        
+
+        if (strtolower($_SESSION["role"]) === 'admin') {
+            header("Location: admin.php");
+        } else {
             header("Location: index.php");
-            exit;
-        }else{
-            $error = login($_POST);
         }
-     
+        exit;
+
+    } else {
+        $error = $hasil;   
     }
+}
+
 
 
 ?>
+
 
 
 
@@ -63,7 +80,7 @@ session_start();
             <div class="login-card">
 
 
-                <h3 class="text-center mb-4">Login</h3>
+                <h3 class="text-center mb-4">Login to Foundit</h3>
 
 
                 <?php if($error) : ?>
@@ -92,7 +109,7 @@ session_start();
 
 
                     <!-- Tombol Register -->
-                    <button type="submit" name="tombol_login" class="btn btn-primary w-100">Login</button>
+                    <button type="submit" name="login" class="btn btn-dark w-100">Login</button>
                     <p class="mt-2">Belum punya akun? <a href="register.php">Register</a></p>
                 </form>
 

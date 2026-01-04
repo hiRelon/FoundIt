@@ -1,17 +1,43 @@
 <?php
 session_start();
-require 'function.php'; // Pastikan file ini berisi koneksi $conn
+    if( !isset($_SESSION["login"]) ) {
+        header("Location: login.php");
+        exit;
+    }
 
-if(!isset($_SESSION["login"])) {
-   header("Location: login.php");
-   exit;
+require 'function.php';
+
+$kategori = [];
+$query = mysqli_query($conn, "SELECT * FROM categories");
+
+while($row = mysqli_fetch_assoc($query)){
+    $kategori[] = $row;
 }
 
-$id_user = $_SESSION["id_user"];
+if(isset($_POST['submit'])){
+     if(tambahBarang($_POST, $_FILES) > 0){
+            echo "
+                <script>
+                    alert('Laporan berhasil dikirimkan!');
+                    document.location.href = 'index.php';
+                </script>
+            ";
+        }else{
+            echo "
+                <script>
+                    alert('Laporan gagal dikirimkan!');
+                    document.location.href = 'laporan.php';
+                </script>
+            ";
+        }
+    }
 
-//AMBIL DATA USER 
-$query_user = mysqli_query($conn, "SELECT * FROM users WHERE id_user = '$id_user'");
-$user = mysqli_fetch_assoc($query_user);
+$id_user = $_SESSION['id_user'];
+
+// Query ke database untuk mendapatkan data user (termasuk kolom foto_profil)
+$result_user = mysqli_query($conn, "SELECT * FROM users WHERE id_user = $id_user");
+$user = mysqli_fetch_assoc($result_user);
+
 
 $folder_profil = "img/profil/";
 if (!empty($user['foto_profil']) && file_exists($folder_profil . $user['foto_profil'])) {
@@ -20,36 +46,8 @@ if (!empty($user['foto_profil']) && file_exists($folder_profil . $user['foto_pro
     $path_foto = $folder_profil . "default.jpg"; 
 }
 
-// Query dasar (Hanya menampilkan yang 'tersedia')
-$sql = "SELECT items.*, categories.nama_kategori, users.username, users.whatsapp 
-        FROM items 
-        LEFT JOIN categories ON items.id_kategori = categories.id_kategori 
-        LEFT JOIN users ON items.id_user = users.id_user
-       WHERE items.status = 'tersedia'";
 
-// Jika tombol cari diklik, tambahkan filter ke SQL
-if (isset($_POST["search"])) {
-    $keyword = mysqli_real_escape_string($conn, $_POST["keyword"]);
-    $sql .= " AND (items.nama_barang LIKE '%$keyword%' 
-               OR items.deskripsi LIKE '%$keyword%' 
-               OR items.lokasi_temuan LIKE '%$keyword%'
-               OR categories.nama_kategori LIKE '%$keyword%')";
-}
-
-// EKSEKUSI QUERY (PENTING: Variabel $result dibuat di sini)
-$result = mysqli_query($conn, $sql);
-
-// Cek jika query gagal (untuk debugging)
-if (!$result) {
-    die("Query Error: " . mysqli_error($conn));
-}
-
-$items = [];
-while($row = mysqli_fetch_assoc($result)){
-    $items[] = $row;
-}
-?>
-
+  ?>
 
   <!DOCTYPE html>
 <html lang="en">
@@ -68,23 +66,12 @@ while($row = mysqli_fetch_assoc($result)){
 
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
-        <style>
-           .avatar-small{
-            width: 32px;
-            height: 32px;
-            object-fit: cover;
-          margin-right: 6px;    
-        }
-
-
         
-
-        </style>
-
     </head>
     <body>
+        
         <!-- Navigation-->
-        <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+      <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
            <div class="container px-4 px-lg-5">
                 <a class="navbar-brand fw-bolder #181F39" href="#!"><i class="bi bi-box2-heart-fill"></i>  FoundIt</a>
                 <form class="mt-2" method="post">
@@ -112,7 +99,6 @@ while($row = mysqli_fetch_assoc($result)){
                                 class="user-image rounded-circle shadow" 
                                 alt="User Image"
                                 style="width: 35px; height: 35px; object-fit: cover;" />
-                            <span class="d-none d-md-inline">
                               <?= ucfirst($_SESSION["username"]); ?>
                             </span>
                           </a>
@@ -148,55 +134,68 @@ while($row = mysqli_fetch_assoc($result)){
         <header class="py-5" style="background-color: #181F39;">
             <div class="container px-4 px-lg-5 my-5">
                 <div class="text-center text-white">
-                    <h1 class="display-4 fw-bolder">Let's FoundIt</h1>
-                    <p class="lead fw-normal text-white-50 mb-0">Temukan yang hilang, kembalikan yang ditemukan</p>
+                    <h1 class="display-4 fw-bolder">Apa yang kamu temukan?</h1>
+                    <p class="lead fw-normal text-white-50 mb-0">Ayo isi datanya dan temukan pemiliknya</p>
                 </div>
             </div>
-          <center>
-          <a href="laporan.php">
-              <button type="button" class="btn btn-lg" style="background-color: #FDA597; color: #181F39 "><b>Laporkan Barang Temuan</b></button>
-          </a>
-          </center>
         </header>
-        <section>
-          
-        </section>
         <!-- Section-->
         <section class="py-5">
-            <div class="container px-4 px-lg-5 mt-5">
-                <div class="row gx-4 gx-lg-5 row-cols-2 row-cols-md-3 row-cols-xl-4 justify-content-center">
-
-                    <?php foreach($items as $row): ?>
-                    <div class="col mb-5">
-                        <div class="card h-100">
-                            <!-- Sale badge-->
-                            <div class="badge bg-dark text-white position-absolute text-capitalize ..." style="top: 0.5rem; right: 0.5rem"><?= $row['status']; ?></div>
-                            <!-- Product image-->
-                            <img src="img/barang/<?= $row['foto_barang']?>" />
-                            <!-- Product details-->
-                            <div class="card-body p-4">
-                                <div class="text">
-                                    <!-- Product name-->
-                                    <h5 class="fw-bolder text-center"><?= $row['nama_barang']; ?></h5> 
-                                    <!-- Product price-->
-                                    <span class="text-left"><b>Deskripsi:</b> <?= $row['deskripsi']; ?></span> <br>
-                                    <span class="text-left"><b>Tanggal Temuan:</b> <?= $row['tanggal_temuan']; ?></span><br>
-                                    <span class="text-left"><b>Lokasi Temuan:</b> <?= $row['lokasi_temuan']; ?></span><br>
-                                    <span class="text-left" value="<?= $row['id_user']; ?>"><b>Penemu: </b> <?= $row['username']; ?></span><br>
-                                   
-                                </div>
-                            </div>
-                            <!-- Product actions-->
-                           <div class="card-footer p-4 pt-0 border-top-0 bg-transparent d-flex justify-content-between">
-                            
-                                <a class="btn w-50 me-2 fw-bolder" style="background-color: #ADD8CE; " href="https://wa.me/<?= $row['cp']; ?>">Hubungi</a>
-                                <a class="btn w-50 fw-bolder" style="background-color: #FEDA90;" href="klaim.php?id=<?= $row['id_item']; ?>">Ambil</a>
-                           </div>
-
+            <div class="container px-4 px-lg-5 mt-2">
+                <div class="justify-content-center">
+                    <div class="card shadow p-5">
+                    <form method="POST" enctype="multipart/form-data" class="row g-3">
+                        <input type="hidden" name="id_user" value="<?= $_SESSION['id_user']; ?>">
+                        <div class="col-md-6">
+                            <label for="nama_barang" class="form-label">Nama Barang</label>
+                            <input type="text" name="nama_barang" class="form-control" id="nama_barang" placeholder="Nama Barang..." autocomplete="off" required>
                         </div>
-                    </div>
-                    <?php endforeach; ?>
 
+                        <div class="col-md-6">
+                            <label for="kategori" class="form-label">Kategori</label>
+                            <select name="id_kategori" id="kategori" class="form-select" autocomplete="off" required>
+                                <option value="">-- Pilih Kategori --</option>
+                                <?php foreach($kategori as $k) : ?>
+                                    <option value="<?= $k['id_kategori']; ?>"><?= $k['nama_kategori']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="deskripsi" class="form-label">Deskripsi</label>
+                            <textarea name="deskripsi" class="form-control" id="deskripsi" rows="3" placeholder="Bentuk, warna, ukuran..." autocomplete="off" ></textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="lokasi_temuan" class="form-label">Lokasi Temuan</label>
+                            <input type="text" name="lokasi_temuan" class="form-control" id="lokasi_temuan" placeholder="Kampus, masjid, kelas..." autocomplete="off" >
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="tanggal_temuan" class="form-label">Tanggal Temuan</label>
+                            <input type="date" name="tanggal_temuan" class="form-control" id="tanggal_temuan" autocomplete="off" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="foto_barang" class="form-label">Foto Barang</label>
+                            <input type="file" name="gambar" class="form-control" id="foto_barang" required>
+                                </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Kontak</label>
+                            <input type="text" 
+                                name="cp" 
+                                class="form-control"
+                                placeholder="628...."
+                                autocomplete="off"  
+                                required>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" name="submit" class="btn" style="background-color: #FDA597;"><b>Kirim Laporan</b></button>
+                        </div>
+                    </form>
+                    </div>
                 </div>
             </div>
         </section>

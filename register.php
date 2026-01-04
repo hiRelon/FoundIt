@@ -8,15 +8,22 @@ session_start();
 
 
     if(isset($_POST['tombol_register'])){
-        if(register($_POST) === true){
-            echo "<script>
+
+    $hasil = register($_POST);
+
+    if($hasil === true){
+        echo "<script>
             alert('Registrasi berhasil!');
             document.location.href = 'login.php';
-          </script>";
-        }else{
-            $error = register($_POST);
-        }
+        </script>";
+        exit;
+    }else{
+        $error = $hasil;
     }
+}
+
+
+    
 
 
 ?>
@@ -34,12 +41,14 @@ session_start();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 
-    <style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+   
+   <style>
         body {
             background: #f6f7fb;
         }
         .login-card {
-            margin-top: 25%;
+            margin-top: 15%;
             padding: 30px;
             border-radius: 10px;
             background: white;
@@ -49,16 +58,17 @@ session_start();
 </head>
 <body>
 
-
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-md-4">
+        
+        <div class="col-md-6">
 
 
-            <div class="login-card">
+            <div class="login-card mb-3">
+                
 
 
-                <h3 class="text-center mb-4">Register</h3>
+                <h3 class="text-center mb-4">Register to FoundIt</h3>
 
 
                 <?php if($error): ?>
@@ -93,6 +103,12 @@ session_start();
                         <input type="email" name="email" class="form-control" placeholder="Masukkan email..." autocomplete="off" required>
                     </div>
 
+                    <!-- No WA -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nomor Whatsapp</label>
+                        <input type="text" name="whatsapp" class="form-control" placeholder="Masukkan nomor 62812..." autocomplete="off" required>
+                    </div>
+
 
                     <!-- Password -->
                     <div class="mb-3">
@@ -109,7 +125,7 @@ session_start();
 
 
                     <!-- Tombol Register -->
-                    <button type="submit" name="tombol_register" class="btn btn-primary w-100">Register</button>
+                    <button type="submit" name="tombol_register" class="btn btn-dark w-100" >Register</button>
                     <p class="mt-2">Sudah punnya akun? <a href="login.php">Login</a></p>
                 </form>
 
